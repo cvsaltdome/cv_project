@@ -1,24 +1,23 @@
+# %%
+
 import os
 import numpy as np
 import cv2
-import imagehelper
 from scipy.interpolate import RectBivariateSpline
 from skimage.filters import apply_hysteresis_threshold
-
+import imagehelper
 import matplotlib.pyplot as plt
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
-def show_in_plot(img1, img2, img3, img4):
+def show_in_plot(img1, img2, img3):
     plt.figure()
-    plt.subplot(2, 2, 1)
+    plt.subplot(1, 3, 1)
     plt.imshow(img1, cmap='gray')
-    plt.subplot(2, 2, 2)
+    plt.subplot(1, 3, 2)
     plt.imshow(img2, cmap='gray')
-    plt.subplot(2, 2, 3)
+    plt.subplot(1, 3, 3)
     plt.imshow(img3, cmap='gray')
-    plt.subplot(2, 2, 4)
-    plt.imshow(img4, cmap='gray')
     plt.show()
 
 
@@ -47,10 +46,15 @@ def get_cov(x, y, patch_size):
     sum = np.multiply(x - x_avg, y - y_avg)
     return np.sum(sum) / patch_size * patch_size
 
-def treat(img_path):
+
+def treat(img_path, result):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = cv2.resize(I, dsize=(200, 200), interpolation=cv2.INTER_AREA)
     I = I / 255
+
+
+    result_image = cv2.cvtColor(cv2.imread(result), cv2.COLOR_BGR2GRAY)
+    result_image = cv2.resize(result_image, dsize=(200, 200), interpolation=cv2.INTER_AREA)
 
     patch_size = 25
     Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=patch_size)
@@ -63,6 +67,7 @@ def treat(img_path):
     covxy = np.zeros((w, h))
     covyx = np.zeros((w, h))
     covyy = np.zeros((w, h))
+    chaos = np.zeros((w, h))
 
     for i in range(0, w):
         for j in range(0, h):
@@ -72,13 +77,22 @@ def treat(img_path):
             covxy[i, j] = get_cov(sovel_x_patch, sovel_y_patch, patch_size)
             covyx[i, j] = get_cov(sovel_y_patch, sovel_x_patch, patch_size)
             covyy[i, j] = get_cov(sovel_y_patch, sovel_y_patch, patch_size)
+            co = np.array([[covxx[i, j], covxy[i, j]], [covyx[i, j], covyy[i, j]]])
+            w, _ = np.linalg.eig(co)
+
+            chaos[i, j] = abs(w[0] - w[1]) / (w[0] + w[1])
     covxy = np.abs(covxy)
     covxy = covxy / np.max(covxy)
     # show_in_plot(covxx)
-    show_in_plot(I, covxy, Gx, Gy)
+    show_in_plot(I, chaos, result_image)
     # show_in_plot(covyy)
 
 
 images_path = imagehelper.get_image_files()
-for image in images_path:
-    treat(image)
+image_pairs = imagehelper.get_image_pairs()
+for image, result in image_pairs:
+    treat(image, result)
+
+# %%
+
+

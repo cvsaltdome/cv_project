@@ -32,6 +32,14 @@ import random
 이미지를 전부 가져온다.
 """
 
+def get_image_pairs():
+    original = []
+    result = []
+    for i in range(0, 15):
+        original.append(f"data/original/{i}.png")
+        result.append(f"data/result/{i}.png")
+    return zip(original, result)
+
 def get_image_files():
     return glob.glob(os.path.join("data/original", '*.png'))
 
