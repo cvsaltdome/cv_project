@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import cv2
+import imagehelper
 from scipy.interpolate import RectBivariateSpline
 from skimage.filters import apply_hysteresis_threshold
 
@@ -19,6 +20,7 @@ def show_in_plot(img1, img2, img3, img4):
     plt.subplot(2, 2, 4)
     plt.imshow(img4, cmap='gray')
     plt.show()
+
 
 def get_patch_at(pixel_grid, i, j, size):
     x_length, y_length = pixel_grid.shape
@@ -39,11 +41,10 @@ def get_patch_at(pixel_grid, i, j, size):
         return np.pad(sliced, pad_value, 'edge')
 
 
-
 def get_cov(x, y, patch_size):
     x_avg = np.average(x)
     y_avg = np.average(y)
-    sum = np.multiply(x-x_avg, y-y_avg)
+    sum = np.multiply(x - x_avg, y - y_avg)
     return np.sum(sum) / patch_size * patch_size
 
 def treat(img_path):
@@ -76,6 +77,8 @@ def treat(img_path):
     # show_in_plot(covxx)
     show_in_plot(I, covxy, Gx, Gy)
     # show_in_plot(covyy)
-treat("data/0b73b427d1.png")
-treat("sample/stripe.jpg")
-treat("sample/random.png")
+
+
+images_path = imagehelper.get_image_files()
+for image in images_path:
+    treat(image)
