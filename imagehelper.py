@@ -43,6 +43,8 @@ def get_image_pairs():
 def get_image_files():
     return glob.glob(os.path.join("data/original", '*.png'))
 
+def get_image_mask():
+    return glob.glob(os.path.join("data/result", '*.png'))
 
 def get_images():
     cv_images = []
