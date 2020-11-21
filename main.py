@@ -11,6 +11,7 @@ import glcm
 import covariance
 import smootheness
 import edge
+import gl
 
 image_pairs = imagehelper.get_image_pairs()
 
@@ -24,11 +25,13 @@ for image, result in image_pairs:
     covariance_result = covariance.treat_covariance_with_multple_window(image)
     # edge_result
     edge_result = edge.treat_edge_with_multple_window(image)
+    # GL
+    gl_result = gl.treat_glcm_with_multple_window(image)
     # smootheness
     smootheness_result = smootheness.treat_result(image)
     imagehelper.show_in_plot([
         I, R,
-        covariance_result, edge_result, smootheness_result
+        covariance_result, edge_result, smootheness_result, gl_result
     ])
     #
     # for covariance_w in np.linspace(0, 1.0, num=5):
