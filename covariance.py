@@ -6,6 +6,8 @@ import cv2
 from scipy.interpolate import RectBivariateSpline
 from skimage.filters import apply_hysteresis_threshold
 import imagehelper
+from skimage.restoration import denoise_tv_chambolle
+
 import matplotlib.pyplot as plt
 
 
@@ -47,16 +49,14 @@ def get_cov(x, y, patch_size):
     return np.sum(sum) / patch_size * patch_size
 
 
-def treat_covariance(img_path):
+def treat_covariance(img_path, patch_size = 25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = I / 255
 
-    patch_size = 25
     Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=patch_size)
     Gy = cv2.Sobel(I, cv2.CV_64F, 0, 1, ksize=patch_size)
 
     w, h = I.shape
-    patch_size = 25
 
     covxx = np.zeros((w, h))
     covxy = np.zeros((w, h))
@@ -78,3 +78,12 @@ def treat_covariance(img_path):
             chaos[i, j] = abs(w[0] - w[1]) / (w[0] + w[1])
     return chaos
 
+def treat_covariance_with_multple_window(img_path):
+    I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    sum = np.zeros(I.shape)
+    for patch_size in range(5, 11, 2):
+        print(patch_size)
+        sum += treat_covariance(img_path, patch_size)
+    average = sum / np.sum(sum)
+    tv_denoised = denoise_tv_chambolle(average, weight=10)
+    return tv_denoised
