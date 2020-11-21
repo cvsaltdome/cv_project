@@ -4,6 +4,7 @@ parent_dir = r"data"
 image_original = []
 image_result = []
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import random
 
@@ -53,3 +54,13 @@ def get_images():
         cv_images.append(cv_image)
     return cv_images
 
+"""
+플롯을 보여 준다.
+"""
+def show_in_plot(images):
+    image_size = len(images)
+    plt.figure()
+    for i in range(0, image_size):
+        plt.subplot(image_size, 1, i+1)
+        plt.imshow(images[i], cmap='gray')
+    plt.show()
