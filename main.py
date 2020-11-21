@@ -23,7 +23,7 @@ for image, result in image_pairs:
     # covariance
     covariance_result = covariance.treat_covariance_with_multple_window(image)
     # edge_result
-    edge_result = edge.treat_edge(image)
+    edge_result = edge.treat_edge_with_multple_window(image)
     # smootheness
     smootheness_result = smootheness.treat_result(image)
     imagehelper.show_in_plot([
