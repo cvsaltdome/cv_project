@@ -57,7 +57,7 @@ def treat_edge_with_multple_window(img_path):
     sum = np.zeros(I.shape)
     for patch_size in range(5, 11, 2):
         print(patch_size)
-        sum += treat_edge(img_path, patch_size, patch_size)
+        sum += treat_edge(img_path, 3, patch_size)
     average = sum / np.sum(sum)
     tv_denoised = denoise_tv_chambolle(average, weight=10)
     return tv_denoised

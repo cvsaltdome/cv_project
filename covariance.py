@@ -53,8 +53,8 @@ def treat_covariance(img_path, patch_size = 25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = I / 255
 
-    Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=patch_size)
-    Gy = cv2.Sobel(I, cv2.CV_64F, 0, 1, ksize=patch_size)
+    Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=3)
+    Gy = cv2.Sobel(I, cv2.CV_64F, 0, 1, ksize=3)
 
     w, h = I.shape
 
@@ -74,8 +74,10 @@ def treat_covariance(img_path, patch_size = 25):
             covyy[i, j] = get_cov(sovel_y_patch, sovel_y_patch, patch_size)
             co = np.array([[covxx[i, j], covxy[i, j]], [covyx[i, j], covyy[i, j]]])
             w, _ = np.linalg.eig(co)
-
-            chaos[i, j] = abs(w[0] - w[1]) / (w[0] + w[1])
+            if(w[0]+w[1]==0):
+                chaos[i,j]=0
+            else:
+                chaos[i, j] = abs(w[0] - w[1]) / (w[0] + w[1])
     return chaos
 
 def treat_covariance_with_multple_window(img_path):

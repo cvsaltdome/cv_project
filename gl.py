@@ -62,7 +62,7 @@ def get_cov(x, y, patch_size):
     return np.sum(sum) / patch_size * patch_size
 
 
-def treat_glcm(img_path, patch_size = 25):
+def treat_glcm(img_path, patch_size = 5):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     w, h = I.shape
     GLCM = np.zeros((w, h))
@@ -78,7 +78,7 @@ def treat_glcm(img_path, patch_size = 25):
 def treat_glcm_with_multple_window(img_path):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     sum = np.zeros(I.shape)
-    for patch_size in range(5, 11, 2):
+    for patch_size in range(3, 11, 12):
         print(patch_size)
         sum += treat_glcm(img_path, patch_size)
     average = sum / np.sum(sum)

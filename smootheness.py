@@ -22,7 +22,7 @@ def get_patch_at(pixel_grid, i, j, size):
     else:
         return np.pad(sliced, pad_value, 'edge')
 
-def treat_result(img_path, sobel_patch_size = 25, smoothness_window_size = 5):
+def treat_result(img_path, sobel_patch_size = 25, smoothness_window_size = 25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = I / 255
 
