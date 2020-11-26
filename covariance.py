@@ -42,7 +42,7 @@ def get_cov(x, y, patch_size):
     return np.sum(cov) / patch_size * patch_size
 
 
-def treat_covariance(img_path, patch_size = 25):
+def treat_covariance(img_path, patch_size=25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = I / 255
 
@@ -74,22 +74,20 @@ def treat_covariance(img_path, patch_size = 25):
     return chaos
 
 
-def treat_covariance_with_multiple_window(img_path):
+def treat_covariance_with_multiple_window(img_path, weight=10):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     summation = np.zeros(I.shape)
     for patch_size in range(5, 11, 2):
-        print(patch_size)
         summation += treat_covariance(img_path, patch_size)
-    tv_denoised = denoise_tv_chambolle(summation, weight=10)
+    tv_denoised = denoise_tv_chambolle(summation, weight=weight)
     return tv_denoised
 
 
-def treat_covariance_with_multiple_window_normalized(img_path):
+def treat_covariance_with_multiple_window_normalized(img_path, weight=10):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     summation = np.zeros(I.shape)
     for patch_size in range(5, 11, 2):
-        print(patch_size)
         summation += treat_covariance(img_path, patch_size)
     average = summation / np.sum(summation)
-    tv_denoised = denoise_tv_chambolle(average, weight=10)
+    tv_denoised = denoise_tv_chambolle(average, weight=weight)
     return tv_denoised
