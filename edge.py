@@ -1,12 +1,6 @@
-import os
-import numpy as np
 import cv2
-from scipy.interpolate import RectBivariateSpline
-from skimage.filters import apply_hysteresis_threshold
-import imagehelper
-import matplotlib.pyplot as plt
+import numpy as np
 from skimage.restoration import denoise_tv_chambolle
-
 
 
 def get_patch_at(pixel_grid, i, j, size):
@@ -28,14 +22,7 @@ def get_patch_at(pixel_grid, i, j, size):
         return np.pad(sliced, pad_value, 'edge')
 
 
-def get_cov(x, y, patch_size):
-    x_avg = np.average(x)
-    y_avg = np.average(y)
-    sum = np.multiply(x - x_avg, y - y_avg)
-    return np.sum(sum) / patch_size * patch_size
-
-
-def treat_edge(img_path, sobel_patch_size = 25, gradient_path_size = 25):
+def treat_edge(img_path, sobel_patch_size=25, gradient_path_size=25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = I / 255
     Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=sobel_patch_size)
@@ -52,12 +39,22 @@ def treat_edge(img_path, sobel_patch_size = 25, gradient_path_size = 25):
     return edge
 
 
-def treat_edge_with_multple_window(img_path):
+def treat_edge_with_multiple_window(img_path, weight=10):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
-    sum = np.zeros(I.shape)
+    summation = np.zeros(I.shape)
     for patch_size in range(5, 11, 2):
         print(patch_size)
-        sum += treat_edge(img_path, 3, patch_size)
-    average = sum / np.sum(sum)
-    tv_denoised = denoise_tv_chambolle(average, weight=10)
+        summation += treat_edge(img_path, 3, patch_size)
+    tv_denoised = denoise_tv_chambolle(summation, weight=weight)
+    return tv_denoised
+
+
+def treat_edge_with_multiple_window_normalized(img_path, weight=10):
+    I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    summation = np.zeros(I.shape)
+    for patch_size in range(5, 11, 2):
+        print(patch_size)
+        summation += treat_edge(img_path, 3, patch_size)
+    average = summation / np.sum(summation)
+    tv_denoised = denoise_tv_chambolle(average, weight=weight)
     return tv_denoised

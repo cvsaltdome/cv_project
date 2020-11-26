@@ -1,7 +1,5 @@
-import os
-import numpy as np
 import cv2
-import matplotlib.pyplot as plt
+import numpy as np
 
 
 def get_patch_at(pixel_grid, i, j, size):
@@ -22,7 +20,8 @@ def get_patch_at(pixel_grid, i, j, size):
     else:
         return np.pad(sliced, pad_value, 'edge')
 
-def treat_result(img_path, sobel_patch_size = 25, smoothness_window_size = 25):
+
+def treat_smoothness(img_path, sobel_patch_size=25, smoothness_window_size=25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     I = I / 255
 
@@ -30,20 +29,20 @@ def treat_result(img_path, sobel_patch_size = 25, smoothness_window_size = 25):
     Gy = cv2.Sobel(I, cv2.CV_64F, 0, 1, ksize=sobel_patch_size)
     G = np.sqrt(Gx * Gx + Gy * Gy)
     G = G / np.max(G)
-    """
-    normalize
-    """
-    """
-    smootheness window size
-    """
+
     w, h = I.shape
     smoothness_window = np.zeros(I.shape)
-
     for i in range(0, w):
         for j in range(0, h):
             gradient_patch = get_patch_at(G, i, j, smoothness_window_size)
             sum = np.sum(gradient_patch)
             smoothness_window[i, j] = sum
 
+    smoothness_window = smoothness_window
+    return smoothness_window
+
+
+def treat_smoothness_normalized(img_path, sobel_patch_size=25, smoothness_window_size=25):
+    smoothness_window = treat_smoothness(img_path, sobel_patch_size, smoothness_window_size)
     smoothness_window = smoothness_window / np.max(smoothness_window)
     return smoothness_window

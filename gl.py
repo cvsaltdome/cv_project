@@ -1,26 +1,8 @@
-from skimage.feature import greycomatrix, greycoprops
-from skimage import data
-import os
-import numpy as np
 import cv2
-from scipy.interpolate import RectBivariateSpline
-from skimage.filters import apply_hysteresis_threshold
-import imagehelper
 import matplotlib.pyplot as plt
-import shutil
-import glob, os
-
-from skimage.restoration import denoise_tv_chambolle
-parent_dir = r"data"
-image_original = []
-image_result = []
-import cv2
 import numpy as np
-import random
-
-
-def get_image_files():
-    return glob.glob(os.path.join("data/original", '*.png'))
+from skimage.feature import greycomatrix, greycoprops
+from skimage.restoration import denoise_tv_chambolle
 
 
 def show_in_plot(img1, img2, img3, img4):
@@ -55,32 +37,44 @@ def get_patch_at(pixel_grid, i, j, size):
         return np.pad(sliced, pad_value, 'edge')
 
 
-def get_cov(x, y, patch_size):
-    x_avg = np.average(x)
-    y_avg = np.average(y)
-    sum = np.multiply(x - x_avg, y - y_avg)
-    return np.sum(sum) / patch_size * patch_size
-
-
-def treat_glcm(img_path, patch_size = 5,a='contrast'):
+def treat_glcm(img_path, patch_size=5, mod='contrast'):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     w, h = I.shape
-    GLCM = np.zeros((w, h))
 
+    GLCM = np.zeros((w, h))
     for i in range(0, w):
         for j in range(0, h):
             patch = get_patch_at(I, i, j, patch_size)
             glcm = greycomatrix(patch, distances=[1], angles=[90], levels=256, symmetric=True, normed=True)
-            GLCM[i, j] = greycoprops(glcm, a)[0, 0]
+            GLCM[i, j] = greycoprops(glcm, mod)[0, 0]
+    return GLCM
+
+
+def treat_glcm_with_multiple_window(img_path, weight=10):
+    I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+
+    summation = np.zeros(I.shape)
+    for patch_size in range(3, 11, 12):
+        print(patch_size)
+        summation += treat_glcm(img_path, patch_size, 'correlation')
+    average = summation / np.sum(summation)
+    tv_denoised = denoise_tv_chambolle(average, weight=weight)
+    return tv_denoised
+
+
+def treat_glcm_normalized(img_path, patch_size=5, mod='contrast'):
+    GLCM = treat_glcm(img_path, patch_size, mod)
     result = (GLCM - np.min(GLCM)) / (np.ptp(GLCM))
     return result
 
-def treat_glcm_with_multple_window(img_path):
+
+def treat_glcm_with_multiple_window_normalized(img_path, weight=10):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
-    sum = np.zeros(I.shape)
+
+    summation = np.zeros(I.shape)
     for patch_size in range(3, 11, 12):
         print(patch_size)
-        sum += treat_glcm(img_path, patch_size,'correlation')
-    average = sum / np.sum(sum)
-    tv_denoised = denoise_tv_chambolle(average, weight=10)
+        summation += treat_glcm_normalized(img_path, patch_size, 'correlation')
+    average = summation / np.sum(summation)
+    tv_denoised = denoise_tv_chambolle(average, weight=weight)
     return tv_denoised

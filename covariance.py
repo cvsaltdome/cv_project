@@ -1,14 +1,7 @@
-# %%
-
-import os
-import numpy as np
 import cv2
-from scipy.interpolate import RectBivariateSpline
-from skimage.filters import apply_hysteresis_threshold
-import imagehelper
-from skimage.restoration import denoise_tv_chambolle
-
 import matplotlib.pyplot as plt
+import numpy as np
+from skimage.restoration import denoise_tv_chambolle
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
@@ -45,8 +38,8 @@ def get_patch_at(pixel_grid, i, j, size):
 def get_cov(x, y, patch_size):
     x_avg = np.average(x)
     y_avg = np.average(y)
-    sum = np.multiply(x - x_avg, y - y_avg)
-    return np.sum(sum) / patch_size * patch_size
+    cov = np.multiply(x - x_avg, y - y_avg)
+    return np.sum(cov) / patch_size * patch_size
 
 
 def treat_covariance(img_path, patch_size = 25):
@@ -80,12 +73,23 @@ def treat_covariance(img_path, patch_size = 25):
                 chaos[i, j] = abs(w[0] - w[1]) / (w[0] + w[1])
     return chaos
 
-def treat_covariance_with_multple_window(img_path):
+
+def treat_covariance_with_multiple_window(img_path):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
-    sum = np.zeros(I.shape)
+    summation = np.zeros(I.shape)
     for patch_size in range(5, 11, 2):
         print(patch_size)
-        sum += treat_covariance(img_path, patch_size)
-    average = sum / np.sum(sum)
+        summation += treat_covariance(img_path, patch_size)
+    tv_denoised = denoise_tv_chambolle(summation, weight=10)
+    return tv_denoised
+
+
+def treat_covariance_with_multiple_window_normalized(img_path):
+    I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    summation = np.zeros(I.shape)
+    for patch_size in range(5, 11, 2):
+        print(patch_size)
+        summation += treat_covariance(img_path, patch_size)
+    average = summation / np.sum(summation)
     tv_denoised = denoise_tv_chambolle(average, weight=10)
     return tv_denoised
