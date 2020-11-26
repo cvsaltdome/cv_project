@@ -3,7 +3,6 @@ import os
 import numpy as np
 import torch
 import torch.utils.data as tdata
-from PIL import Image
 import cv2
 
 import covariance
@@ -46,6 +45,9 @@ class SeismicAttributeDataset(tdata.Dataset):
             self.x = np.zeros((0, 9))
             for x_raw in x_raws:
                 self.x = np.append(self.x, x_raw.reshape(x_raw.size // 9, 9), axis=0)
+            self.x_max = np.max(self.x, axis=0)
+            self.x_min = np.min(self.x, axis=0)
+            print(self.x_max.shape)
 
             self.y = np.zeros((0, 2))
             for y_raw in y_raws:
@@ -59,16 +61,22 @@ class SeismicAttributeDataset(tdata.Dataset):
                 self.y = np.append(self.y, y_append, axis=0)
 
             np.save(os.path.join(data_dir, 'x'), self.x)
+            np.save(os.path.join(data_dir, 'x_max'), self.x_max)
+            np.save(os.path.join(data_dir, 'x_min'), self.x_min)
             np.save(os.path.join(data_dir, 'y'), self.y)
         else:
             self.x = np.load(os.path.join(data_dir, 'x.npy'))
+            self.x_max = np.load(os.path.join(data_dir, 'x_max.npy'))
+            self.x_min = np.load(os.path.join(data_dir, 'x_min.npy'))
             self.y = np.load(os.path.join(data_dir, 'y.npy'))
 
     def __len__(self):
         return self.x.shape[0]
 
     def __getitem__(self, idx):
-        x = torch.from_numpy(self.x[idx])
+        x = self.x[idx]
+        x = 2 * (x - self.x_min) / (self.x_max - self.x_min) - 1
+        x = torch.from_numpy(x)
         y = torch.from_numpy(self.y[idx])
         return x, y
 
