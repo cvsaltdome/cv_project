@@ -1,9 +1,10 @@
 import os
 
+import cv2
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.utils.data as tdata
-import cv2
 
 import covariance
 import edge
@@ -47,7 +48,6 @@ class SeismicAttributeDataset(tdata.Dataset):
                 self.x = np.append(self.x, x_raw.reshape(x_raw.size // 9, 9), axis=0)
             self.x_max = np.max(self.x, axis=0)
             self.x_min = np.min(self.x, axis=0)
-            print(self.x_max.shape)
 
             self.y = np.zeros((0, 2))
             for y_raw in y_raws:
@@ -81,5 +81,29 @@ class SeismicAttributeDataset(tdata.Dataset):
         return x, y
 
 
-a = SeismicAttributeDataset(is_test=True, is_new=False)
-print(a.__getitem__(1))
+class MLPNetwork(nn.Module):
+    def __init__(self, node=16):
+        super(MLPNetwork, self).__init__()
+
+        self.network = nn.Sequential(
+            nn.Linear(9, node),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Linear(node, node),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Linear(node, node),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Linear(node, node),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Linear(node, 2),
+            nn.Softmax(dim=1)
+        )
+
+    def forward(self, x):
+        y = self.network(x)
+        return y
+
+
+net = MLPNetwork()
+x = torch.rand((1, 9))
+y = net(x)
+print(y.size())
