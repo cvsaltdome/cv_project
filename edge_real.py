@@ -1,5 +1,3 @@
-from skimage.feature import greycomatrix, greycoprops
-from skimage import data
 import os
 import numpy as np
 import cv2
@@ -7,33 +5,8 @@ from scipy.interpolate import RectBivariateSpline
 from skimage.filters import apply_hysteresis_threshold
 import imagehelper
 import matplotlib.pyplot as plt
-import shutil
-import glob, os
-
 from skimage.restoration import denoise_tv_chambolle
-parent_dir = r"data"
-image_original = []
-image_result = []
-import cv2
-import numpy as np
-import random
 
-
-def get_image_files():
-    return glob.glob(os.path.join("data/original", '*.png'))
-
-
-def show_in_plot(img1, img2, img3, img4):
-    plt.figure()
-    plt.subplot(2, 2, 1)
-    plt.imshow(img1, cmap='gray')
-    plt.subplot(2, 2, 2)
-    plt.imshow(img2, cmap='gray')
-    plt.subplot(2, 2, 3)
-    plt.imshow(img3, cmap='gray')
-    plt.subplot(2, 2, 4)
-    plt.imshow(img4, cmap='gray')
-    plt.show()
 
 
 def get_patch_at(pixel_grid, i, j, size):
@@ -62,25 +35,29 @@ def get_cov(x, y, patch_size):
     return np.sum(sum) / patch_size * patch_size
 
 
-def treat_glcm(img_path, patch_size = 5,a='contrast'):
+def treat_edge(img_path, sobel_patch_size = 25, gradient_path_size = 25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    I = I / 255
+    Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=sobel_patch_size)
+    Gy = cv2.Sobel(I, cv2.CV_64F, 0, 1, ksize=sobel_patch_size)
+    G = np.sqrt(Gx * Gx + Gy * Gy)
+
     w, h = I.shape
-    GLCM = np.zeros((w, h))
+    edge = np.zeros((w, h))
 
     for i in range(0, w):
         for j in range(0, h):
-            patch = get_patch_at(I, i, j, patch_size)
-            glcm = greycomatrix(patch, distances=[1], angles=[90], levels=256, symmetric=True, normed=True)
-            GLCM[i, j] = greycoprops(glcm, a)[0, 0]
-    result = (GLCM - np.min(GLCM)) / (np.ptp(GLCM))
-    return result
+            g_patch = get_patch_at(G, i, j, gradient_path_size)
+            edge[i, j] = np.max(g_patch) - np.min(g_patch)
+    return edge
 
-def treat_glcm_with_multple_window(img_path):
+
+def treat_edge_with_multple_window(img_path):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     sum = np.zeros(I.shape)
-    for patch_size in range(3, 11, 12):
+    for patch_size in range(5, 11, 2):
         print(patch_size)
-        sum += treat_glcm(img_path, patch_size,'correlation')
-    average = sum / np.sum(sum)
-    tv_denoised = denoise_tv_chambolle(average, weight=10)
+        sum += treat_edge(img_path, 3, patch_size)
+    #average = sum / np.sum(sum)
+    tv_denoised = denoise_tv_chambolle(sum, weight=10)
     return tv_denoised

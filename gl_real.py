@@ -72,8 +72,8 @@ def treat_glcm(img_path, patch_size = 5,a='contrast'):
             patch = get_patch_at(I, i, j, patch_size)
             glcm = greycomatrix(patch, distances=[1], angles=[90], levels=256, symmetric=True, normed=True)
             GLCM[i, j] = greycoprops(glcm, a)[0, 0]
-    result = (GLCM - np.min(GLCM)) / (np.ptp(GLCM))
-    return result
+    #result = (GLCM - np.min(GLCM)) / (np.ptp(GLCM))
+    return GLCM
 
 def treat_glcm_with_multple_window(img_path):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)

@@ -1,38 +1,25 @@
-from skimage.feature import greycomatrix, greycoprops
-from skimage import data
+# %%
+
 import os
 import numpy as np
 import cv2
 from scipy.interpolate import RectBivariateSpline
 from skimage.filters import apply_hysteresis_threshold
 import imagehelper
-import matplotlib.pyplot as plt
-import shutil
-import glob, os
-
 from skimage.restoration import denoise_tv_chambolle
-parent_dir = r"data"
-image_original = []
-image_result = []
-import cv2
-import numpy as np
-import random
+
+import matplotlib.pyplot as plt
 
 
-def get_image_files():
-    return glob.glob(os.path.join("data/original", '*.png'))
-
-
-def show_in_plot(img1, img2, img3, img4):
+# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+def show_in_plot(img1, img2, img3):
     plt.figure()
-    plt.subplot(2, 2, 1)
+    plt.subplot(1, 3, 1)
     plt.imshow(img1, cmap='gray')
-    plt.subplot(2, 2, 2)
+    plt.subplot(1, 3, 2)
     plt.imshow(img2, cmap='gray')
-    plt.subplot(2, 2, 3)
+    plt.subplot(1, 3, 3)
     plt.imshow(img3, cmap='gray')
-    plt.subplot(2, 2, 4)
-    plt.imshow(img4, cmap='gray')
     plt.show()
 
 
@@ -62,25 +49,43 @@ def get_cov(x, y, patch_size):
     return np.sum(sum) / patch_size * patch_size
 
 
-def treat_glcm(img_path, patch_size = 5,a='contrast'):
+def treat_covariance(img_path, patch_size = 25):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
+    I = I / 255
+
+    Gx = cv2.Sobel(I, cv2.CV_64F, 1, 0, ksize=3)
+    Gy = cv2.Sobel(I, cv2.CV_64F, 0, 1, ksize=3)
+
     w, h = I.shape
-    GLCM = np.zeros((w, h))
+
+    covxx = np.zeros((w, h))
+    covxy = np.zeros((w, h))
+    covyx = np.zeros((w, h))
+    covyy = np.zeros((w, h))
+    chaos = np.zeros((w, h))
 
     for i in range(0, w):
         for j in range(0, h):
-            patch = get_patch_at(I, i, j, patch_size)
-            glcm = greycomatrix(patch, distances=[1], angles=[90], levels=256, symmetric=True, normed=True)
-            GLCM[i, j] = greycoprops(glcm, a)[0, 0]
-    result = (GLCM - np.min(GLCM)) / (np.ptp(GLCM))
-    return result
+            sovel_x_patch = get_patch_at(Gx, i, j, patch_size)
+            sovel_y_patch = get_patch_at(Gy, i, j, patch_size)
+            covxx[i, j] = get_cov(sovel_x_patch, sovel_x_patch, patch_size)
+            covxy[i, j] = get_cov(sovel_x_patch, sovel_y_patch, patch_size)
+            covyx[i, j] = get_cov(sovel_y_patch, sovel_x_patch, patch_size)
+            covyy[i, j] = get_cov(sovel_y_patch, sovel_y_patch, patch_size)
+            co = np.array([[covxx[i, j], covxy[i, j]], [covyx[i, j], covyy[i, j]]])
+            w, _ = np.linalg.eig(co)
+            if(w[0]+w[1]==0):
+                chaos[i,j]=0
+            else:
+                chaos[i, j] = abs(w[0] - w[1]) / (w[0] + w[1])
+    return chaos
 
-def treat_glcm_with_multple_window(img_path):
+def treat_covariance_with_multple_window(img_path):
     I = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY)
     sum = np.zeros(I.shape)
-    for patch_size in range(3, 11, 12):
+    for patch_size in range(5, 11, 2):
         print(patch_size)
-        sum += treat_glcm(img_path, patch_size,'correlation')
-    average = sum / np.sum(sum)
-    tv_denoised = denoise_tv_chambolle(average, weight=10)
+        sum += treat_covariance(img_path, patch_size)
+    #average = sum / np.sum(sum)
+    tv_denoised = denoise_tv_chambolle(sum, weight=10)
     return tv_denoised
