@@ -177,3 +177,6 @@ dmypy.json
 .prof
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,python
+
+mlp_dataset/network
+mlp_dataset/network/**

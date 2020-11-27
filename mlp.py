@@ -1,10 +1,13 @@
 import os
+import time
 
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torch.utils.data as tdata
+import torch.backends.cudnn as cudnn
 
 import covariance
 import edge
@@ -31,7 +34,6 @@ class SeismicAttributeDataset(tdata.Dataset):
                 x_raw = np.append(x_raw, np.expand_dims(smootheness.treat_smoothness(img_path), axis=2), axis=2)
                 x_raw = np.append(x_raw, gl.treat_all_glcm_with_multiple_window(img_path), axis=2)
                 x_raws.append(x_raw)
-                break
 
             y_dir = os.path.join(data_dir, "y")
             y_paths = os.listdir(y_dir)
@@ -41,7 +43,6 @@ class SeismicAttributeDataset(tdata.Dataset):
                 y_append = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY).astype(np.int32)
                 y_append = y_append // 255
                 y_raws.append(y_append)
-                break
 
             self.x = np.zeros((0, 9))
             for x_raw in x_raws:
@@ -82,18 +83,22 @@ class SeismicAttributeDataset(tdata.Dataset):
 
 
 class MLPNetwork(nn.Module):
-    def __init__(self, node=16):
+    def __init__(self, node=16, drop=0.5):
         super(MLPNetwork, self).__init__()
 
         self.network = nn.Sequential(
             nn.Linear(9, node),
             nn.LeakyReLU(0.1, inplace=True),
+            nn.Dropout(drop),
             nn.Linear(node, node),
             nn.LeakyReLU(0.1, inplace=True),
+            nn.Dropout(drop),
             nn.Linear(node, node),
             nn.LeakyReLU(0.1, inplace=True),
+            nn.Dropout(drop),
             nn.Linear(node, node),
             nn.LeakyReLU(0.1, inplace=True),
+            nn.Dropout(drop),
             nn.Linear(node, 2),
             nn.Softmax(dim=1)
         )
@@ -103,7 +108,136 @@ class MLPNetwork(nn.Module):
         return y
 
 
-net = MLPNetwork()
-x = torch.rand((1, 9))
-y = net(x)
-print(y.size())
+def construct_dataset():
+    SeismicAttributeDataset(is_test=True, is_new=True)
+    SeismicAttributeDataset(is_test=False, is_new=True)
+
+
+def train():
+    cudnn.benchmark = True
+    tag = "mlp"
+    is_cuda_available = torch.cuda.is_available()
+    device = torch.device("cuda:0" if is_cuda_available else "cpu")
+
+    n_epoch = 1000
+    s_epoch = 0
+    lr = 1e-3
+    batch_size = 32
+    gamma = 0.995
+
+    node = 16
+    drop = 0.5
+
+    network = MLPNetwork(node, drop=drop).to(device)
+
+    train_set = SeismicAttributeDataset(is_test=True, is_new=False)
+    train_loader = tdata.DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
+
+    valid_set = SeismicAttributeDataset(is_test=False, is_new=False)
+    valid_loader = tdata.DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+
+    optimizer = optim.Adam(network.parameters(), lr=lr, betas=(0.5, 0.999))
+
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+
+    criterion = nn.KLDivLoss()
+
+    train_losses = []
+    valid_losses = []
+    if s_epoch != 0:
+        state = torch.load(os.path.join("mlp_dataset", "network", tag + "_" + str(s_epoch).zfill(4)))
+
+        network.load_state_dict(state["network"])
+        optimizer.load_state_dict(state["optimizer"])
+        scheduler.load_state_dict(state["scheduler"])
+
+        train_losses = state["train_losses"]
+        valid_losses = state["valid_losses"]
+
+    if len(train_set) % batch_size == 0:
+        n_train = len(train_loader)
+    else:
+        n_train = len(train_loader) - 1
+
+    if len(valid_set) % batch_size == 0:
+        n_valid = len(valid_loader)
+    else:
+        n_valid = len(valid_loader) - 1
+
+    ave_train_loss = 0.0
+    ave_valid_loss = 0.0
+    ema_coeff = 0.9
+    for i_epoch in range(s_epoch, n_epoch):
+        start_time = time.time()
+
+        ave_train_loss_biased = 0.0
+        for i_batch, (x_data, y_data) in enumerate(train_loader):
+            if x_data.size()[0] != batch_size:
+                continue
+
+            optimizer.zero_grad()
+
+            x = x_data.to(device)
+            label = y_data.to(device)
+            y = network(x)
+            loss = criterion(y, label)
+            loss.backward()
+            optimizer.step()
+
+            ave_train_loss_biased = ema_coeff * ave_train_loss_biased + (1 - ema_coeff) * loss.item()
+            if (i_batch + 1) % 100 == 0 or (i_batch + 1) == n_train:
+                ave_train_loss = ave_train_loss_biased / (1 - ema_coeff ** (i_batch + 1))
+                print("epoch: {:4}, batch index: {:4}, train loss: {:7.4f}".format(
+                    i_epoch + 1,
+                    i_batch + 1,
+                    ave_train_loss
+                ))
+
+        crr_cnt = 0
+        ttl_cnt = 0
+        ave_valid_loss_biased = 0.0
+        for i_batch, (x_data, y_data) in enumerate(valid_loader):
+            if x_data.size()[0] != batch_size:
+                continue
+
+            x = x_data.to(device)
+            label = y_data.to(device)
+            y = network(x)
+            loss = criterion(y, label)
+
+            _, prediction = torch.max(y.data, dim=1)
+            _, answer = torch.max(label.data, dim=1)
+            ttl_cnt += x.data.size()[0]
+            for i_data in range(x.data.size()[0]):
+                if prediction[i_data] == answer[i_data]:
+                    crr_cnt += 1
+
+            ave_valid_loss_biased = ema_coeff * ave_valid_loss_biased + (1 - ema_coeff) * loss.item()
+            if (i_batch + 1) % 100 == 0 or (i_batch + 1) == n_valid:
+                ave_valid_loss = ave_valid_loss_biased / (1 - ema_coeff ** (i_batch + 1))
+                print("epoch: {:4}, batch index: {:4}, valid loss: {:7.4f}".format(
+                    i_epoch + 1,
+                    i_batch + 1,
+                    ave_valid_loss
+                ))
+
+        scheduler.step()
+        train_losses.append(ave_train_loss)
+        valid_losses.append(ave_valid_loss)
+
+        state = {
+            "network": network.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "train_losses": train_losses,
+            "valid_losses": valid_losses
+        }
+
+        print("epoch: {:4}, save training state".format(i_epoch + 1))
+        torch.save(state, os.path.join("mlp_dataset", "network", tag + "_" + str(i_epoch + 1).zfill(4)))
+
+        print("epoch: {:4}, execution time: {:6.2f}".format(i_epoch + 1, time.time() - start_time))
+
+
+if __name__ == "__main__":
+    construct_dataset()
