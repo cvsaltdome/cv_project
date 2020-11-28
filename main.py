@@ -7,6 +7,7 @@ import edge
 import gl
 import imagehelper
 import smootheness
+import floodfill
 
 image_pairs = imagehelper.get_image_pairs()
 
@@ -21,13 +22,20 @@ if __name__ == "__main__":
         # edge_result
         edge_result = edge.treat_edge_with_multiple_window(image)
         # GL
-        gl_result = gl.treat_glcm_with_multiple_window_normalized(image)
-        # smootheness
-        smootheness_result = smootheness.treat_smoothness_normalized(image)
+        # gl_result = gl.treat_glcm_with_multiple_window_normalized(image)
+        # # smootheness
+        # smootheness_result = smootheness.treat_smoothness_normalized(image)
+        # imagehelper.show_in_plot([
+        #     I, R,
+        #     covariance_result, edge_result, smootheness_result, gl_result
+        # ])
+
+        graph = floodfill.convert_edge_to_normal(edge_result)
+        floodfill_result, colored_results = floodfill.flood_fill(edge_result, covariance_result)
         imagehelper.show_in_plot([
             I, R,
-            covariance_result, edge_result, smootheness_result, gl_result
-        ])
+            covariance_result, edge_result, graph, floodfill_result,
+        ] + colored_results)
         #
         # for covariance_w in np.linspace(0, 1.0, num=5):
         #     for edge_w in np.linspace(0, 1.0, num = 5):
