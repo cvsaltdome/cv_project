@@ -55,6 +55,43 @@ def bfs_for_result(x, y, h, w, result_image, flood_image):
                     result_image[next_x, next_y] = 1
                     queue.appendleft([next_x, next_y])
 
+def get_patch_at(pixel_grid, i, j, size):
+    x_length, y_length = pixel_grid.shape
+    half_size = int(size / 2)
+    start_x: int = max(0, i - half_size)
+    end_x: int = min(x_length, i + half_size + 1)
+    start_y: int = max(0, j - half_size)
+    end_y: int = min(y_length, j + half_size + 1)
+    pad_start_x: int = max(0, -(i - half_size))
+    pad_end_x: int = max(0, (i + half_size + 1) - x_length)
+    pad_start_y: int = max(0, -(j - half_size))
+    pad_end_y: int = max(0, (j + half_size + 1) - y_length)
+    pad_value = ((pad_start_x, pad_end_x), (pad_start_y, pad_end_y))
+    sliced = pixel_grid[start_x:end_x, start_y:end_y]
+    if pad_start_x == 0 and pad_end_x == 0 and pad_start_y == 0 and pad_end_y == 0:
+        return sliced
+    else:
+        return np.pad(sliced, pad_value, 'edge')
+
+def nms(image):
+    h, w = np.shape(image)
+    patch_size = int(np.round(min(h, w) / 20))
+
+    if patch_size % 2 == 0:
+        patch_size += 1
+
+
+    result = np.zeros((h, w))
+
+    for i in range(0, h):
+        for j in range(0, w):
+            patch = get_patch_at(image, i, j, patch_size)
+            patch_min = np.max(patch)
+            if image[i, j] == patch_min:
+                result[i, j] = 1
+            else:
+                result[i, j] = 0
+    return result
 
 def normalize(graph):
     return (graph - np.min(graph)) / (np.ptp(graph))
@@ -62,8 +99,8 @@ def normalize(graph):
 
 def convert_edge_to_normal(edge_region):
     normalized_edge = normalize(edge_region)
-    th_lo = 0.1
-    th_hi = 0.2
+    th_lo = 0.7
+    th_hi = 0.8
     hyst = apply_hysteresis_threshold(normalized_edge, th_lo, th_hi)
     return hyst
 def flood_fill(edge_region, covariance_result):
