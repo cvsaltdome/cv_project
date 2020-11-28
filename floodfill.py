@@ -145,15 +145,8 @@ def flood_fill(edge_region, covariance_result):
             if result > (threshold / 10):
                 bfs_for_result(x, y, h, w, result_image, flood_image)
         eval.append(result_image)
-        imagehelper.show_in_plot([result_image])
-
-    imagehelper.show_in_plot(eval)
 
 
 
-
-    dummy = np.zeros((h, w))
-
-
-    return flood_image, result_image
+    return flood_image, eval
 

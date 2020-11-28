@@ -59,8 +59,9 @@ def get_images():
 """
 def show_in_plot(images):
     image_size = len(images)
+    plot_size = int(np.ceil(np.sqrt(image_size)))
     plt.figure()
     for i in range(0, image_size):
-        plt.subplot(image_size, 1, i+1)
+        plt.subplot(plot_size, plot_size, i+1)
         plt.imshow(images[i], cmap='gray')
     plt.show()
