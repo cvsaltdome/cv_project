@@ -4,10 +4,10 @@ import time
 import cv2
 import numpy as np
 import torch
+import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data as tdata
-import torch.backends.cudnn as cudnn
 
 import covariance
 import edge
@@ -18,9 +18,9 @@ import smootheness
 class SeismicAttributeDataset(tdata.Dataset):
     def __init__(self, is_test, is_new):
         if is_test:
-            data_dir = os.path.join("", "mlp_dataset", "test")
+            data_dir = os.path.join("mlp_dataset", "train")
         else:
-            data_dir = os.path.join("", "mlp_dataset", "valid")
+            data_dir = os.path.join("mlp_dataset", "valid")
 
         if is_new:
             x_dir = os.path.join(data_dir, "x")
@@ -67,8 +67,8 @@ class SeismicAttributeDataset(tdata.Dataset):
             np.save(os.path.join(data_dir, 'y'), self.y)
         else:
             self.x = np.load(os.path.join(data_dir, 'x.npy'))
-            self.x_max = np.load(os.path.join(data_dir, 'x_max.npy'))
-            self.x_min = np.load(os.path.join(data_dir, 'x_min.npy'))
+            self.x_max = np.load(os.path.join("mlp_dataset", 'x_max.npy'))
+            self.x_min = np.load(os.path.join("mlp_dataset", 'x_min.npy'))
             self.y = np.load(os.path.join(data_dir, 'y.npy'))
 
     def __len__(self):
@@ -80,6 +80,12 @@ class SeismicAttributeDataset(tdata.Dataset):
         x = torch.from_numpy(x)
         y = torch.from_numpy(self.y[idx])
         return x, y
+
+
+def init_weights(module):
+    if type(module) == nn.Linear:
+        nn.init.xavier_uniform_(module.weight)
+        nn.init.constant_(module.bias, 0.0)
 
 
 class MLPNetwork(nn.Module):
@@ -103,6 +109,8 @@ class MLPNetwork(nn.Module):
             nn.Softmax(dim=1)
         )
 
+        self.apply(init_weights)
+
     def forward(self, x):
         y = self.network(x)
         return y
@@ -112,6 +120,21 @@ def construct_dataset():
     SeismicAttributeDataset(is_test=True, is_new=True)
     SeismicAttributeDataset(is_test=False, is_new=True)
 
+    train_x_max = np.load(os.path.join("mlp_dataset", "train", 'x_max.npy'))
+    train_x_min = np.load(os.path.join("mlp_dataset", "train", 'x_min.npy'))
+
+    valid_x_max = np.load(os.path.join("mlp_dataset", "valid", 'x_max.npy'))
+    valid_x_min = np.load(os.path.join("mlp_dataset", "valid", 'x_min.npy'))
+
+    x_max = np.append(train_x_max.reshape((9, 1)), valid_x_max.reshape((9, 1)), axis=1)
+    x_min = np.append(train_x_min.reshape((9, 1)), valid_x_min.reshape((9, 1)), axis=1)
+
+    x_max = np.max(x_max, axis=1)
+    x_min = np.min(x_min, axis=1)
+
+    np.save(os.path.join("mlp_dataset", 'x_max'), x_max)
+    np.save(os.path.join("mlp_dataset", 'x_min'), x_min)
+
 
 def train():
     cudnn.benchmark = True
@@ -119,16 +142,16 @@ def train():
     is_cuda_available = torch.cuda.is_available()
     device = torch.device("cuda:0" if is_cuda_available else "cpu")
 
-    n_epoch = 1000
+    n_epoch = 100
     s_epoch = 0
-    lr = 1e-3
-    batch_size = 32
+    lr = 1e-2
+    batch_size = 256
     gamma = 0.995
 
     node = 16
     drop = 0.5
 
-    network = MLPNetwork(node, drop=drop).to(device)
+    network = MLPNetwork(node, drop=drop).to(device).double()
 
     train_set = SeismicAttributeDataset(is_test=True, is_new=False)
     train_loader = tdata.DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
@@ -136,11 +159,11 @@ def train():
     valid_set = SeismicAttributeDataset(is_test=False, is_new=False)
     valid_loader = tdata.DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
-    optimizer = optim.Adam(network.parameters(), lr=lr, betas=(0.5, 0.999))
+    optimizer = optim.Adam(network.parameters(), lr=lr, betas=(0.9, 0.999))
 
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
 
-    criterion = nn.KLDivLoss()
+    criterion = nn.KLDivLoss(reduction="batchmean")
 
     train_losses = []
     valid_losses = []
@@ -170,6 +193,7 @@ def train():
     for i_epoch in range(s_epoch, n_epoch):
         start_time = time.time()
 
+        network.train()
         ave_train_loss_biased = 0.0
         for i_batch, (x_data, y_data) in enumerate(train_loader):
             if x_data.size()[0] != batch_size:
@@ -180,7 +204,7 @@ def train():
             x = x_data.to(device)
             label = y_data.to(device)
             y = network(x)
-            loss = criterion(y, label)
+            loss = criterion(torch.log(y), label)
             loss.backward()
             optimizer.step()
 
@@ -193,6 +217,7 @@ def train():
                     ave_train_loss
                 ))
 
+        network.eval()
         crr_cnt = 0
         ttl_cnt = 0
         ave_valid_loss_biased = 0.0
@@ -203,7 +228,7 @@ def train():
             x = x_data.to(device)
             label = y_data.to(device)
             y = network(x)
-            loss = criterion(y, label)
+            loss = criterion(torch.log(y), label)
 
             _, prediction = torch.max(y.data, dim=1)
             _, answer = torch.max(label.data, dim=1)
@@ -215,10 +240,11 @@ def train():
             ave_valid_loss_biased = ema_coeff * ave_valid_loss_biased + (1 - ema_coeff) * loss.item()
             if (i_batch + 1) % 100 == 0 or (i_batch + 1) == n_valid:
                 ave_valid_loss = ave_valid_loss_biased / (1 - ema_coeff ** (i_batch + 1))
-                print("epoch: {:4}, batch index: {:4}, valid loss: {:7.4f}".format(
+                print("epoch: {:4}, batch index: {:4}, valid loss: {:7.4f}, accuracy: {:.3f}".format(
                     i_epoch + 1,
                     i_batch + 1,
-                    ave_valid_loss
+                    ave_valid_loss,
+                    float(crr_cnt) / ttl_cnt
                 ))
 
         scheduler.step()
@@ -240,4 +266,4 @@ def train():
 
 
 if __name__ == "__main__":
-    construct_dataset()
+    train()

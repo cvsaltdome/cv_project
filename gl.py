@@ -60,11 +60,10 @@ def treat_all_glcm_with_multiple_window(img_path, weight=10):
     summation = np.zeros((I.shape[0], I.shape[1], 6))
     for patch_size in range(3, 11, 12):
         summation += treat_all_glcm(img_path, patch_size)
-    average = summation / np.sum(summation, axis=(0, 1))
 
     tv_denoised = np.zeros((I.shape[0], I.shape[1], 6))
     for i in range(6):
-        tv_denoised[i] = denoise_tv_chambolle(average[i], weight=weight)
+        tv_denoised[:, :, i] = denoise_tv_chambolle(summation[:, :, i], weight=weight)
     return tv_denoised
 
 
@@ -86,8 +85,7 @@ def treat_glcm_with_multiple_window(img_path, weight=10, mod='correlation'):
     summation = np.zeros(I.shape)
     for patch_size in range(3, 11, 12):
         summation += treat_glcm(img_path, patch_size, mod)
-    average = summation / np.sum(summation)
-    tv_denoised = denoise_tv_chambolle(average, weight=weight)
+    tv_denoised = denoise_tv_chambolle(summation, weight=weight)
     return tv_denoised
 
 
