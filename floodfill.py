@@ -4,6 +4,7 @@ import numpy as np
 from skimage.restoration import denoise_tv_chambolle
 from collections import deque
 from random import *
+import imagehelper
 from skimage.filters import apply_hysteresis_threshold
 
 
@@ -103,10 +104,25 @@ def convert_edge_to_normal(edge_region):
     th_hi = 0.8
     hyst = apply_hysteresis_threshold(normalized_edge, th_lo, th_hi)
     return hyst
+
+def convert_to_image(graph):
+    normalized_edge = normalize(graph) * 255
+    return normalized_edge.astype(np.uint8)
+
+def contour(edge_region):
+    image = convert_to_image(edge_region)
+
+    new_image = np.zeros(np.shape(edge_region))
+    for i in range(0, 255, 32):
+        ret, thr = cv2.threshold(image, i, 255, 0)
+        new_image += thr
+    return new_image
+
+
 def flood_fill(edge_region, covariance_result):
     h, w = np.shape(edge_region)
 
-    graph = convert_edge_to_normal(edge_region)
+    graph = contour(edge_region)
     normalize_covariance = normalize(covariance_result)
 
     number_of_area = 0
@@ -123,7 +139,7 @@ def flood_fill(edge_region, covariance_result):
                 flood_fill_data.append([x, y, result])
     print(flood_fill_data)
     for x, y, result in flood_fill_data:
-        if result > 0.3:
+        if result > 0.5:
             bfs_for_result(x, y, h, w, result_image, flood_image)
 
     return flood_image, result_image
