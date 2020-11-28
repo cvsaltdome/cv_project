@@ -127,7 +127,6 @@ def flood_fill(edge_region, covariance_result):
 
     number_of_area = 0
     flood_image = np.zeros((h, w))
-    result_image = np.zeros((h, w))
 
     flood_fill_data = []
 
@@ -138,9 +137,23 @@ def flood_fill(edge_region, covariance_result):
                 result = bfs(x, y, h, w, graph, flood_image, number_of_area, normalize_covariance)
                 flood_fill_data.append([x, y, result])
     print(flood_fill_data)
-    for x, y, result in flood_fill_data:
-        if result > 0.5:
-            bfs_for_result(x, y, h, w, result_image, flood_image)
+
+    eval = []
+    for threshold in range(1, 10):
+        result_image = np.zeros((h, w))
+        for x, y, result in flood_fill_data:
+            if result > (threshold / 10):
+                bfs_for_result(x, y, h, w, result_image, flood_image)
+        eval.append(result_image)
+        imagehelper.show_in_plot([result_image])
+
+    imagehelper.show_in_plot(eval)
+
+
+
+
+    dummy = np.zeros((h, w))
+
 
     return flood_image, result_image
 
