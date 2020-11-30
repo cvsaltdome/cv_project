@@ -22,7 +22,7 @@ if __name__ == "__main__":
         # edge_result
         edge_result = edge.treat_edge_with_multiple_window(image)
         # GL
-        # gl_result = gl.treat_glcm_with_multiple_window_normalized(image)
+        gl_result=gl.treat_glcm_with_multiple_window_normalized(image,10,'homogeneity')
         # # smootheness
         # smootheness_result = smootheness.treat_smoothness_normalized(image)
         # imagehelper.show_in_plot([
