@@ -16,11 +16,8 @@ import smootheness
 
 
 class SeismicAttributeDataset(tdata.Dataset):
-    def __init__(self, is_test, is_new):
-        if is_test:
-            data_dir = os.path.join("mlp_dataset", "train")
-        else:
-            data_dir = os.path.join("mlp_dataset", "valid")
+    def __init__(self, data_usage, is_new):
+        data_dir = os.path.join("mlp_dataset", data_usage)
 
         if is_new:
             x_dir = os.path.join(data_dir, "x")
@@ -117,8 +114,9 @@ class MLPNetwork(nn.Module):
 
 
 def construct_dataset():
-    SeismicAttributeDataset(is_test=True, is_new=True)
-    SeismicAttributeDataset(is_test=False, is_new=True)
+    SeismicAttributeDataset(data_usage="train", is_new=True)
+    SeismicAttributeDataset(data_usage="valid", is_new=True)
+    SeismicAttributeDataset(data_usage="test", is_new=True)
 
     train_x_max = np.load(os.path.join("mlp_dataset", "train", 'x_max.npy'))
     train_x_min = np.load(os.path.join("mlp_dataset", "train", 'x_min.npy'))
@@ -126,8 +124,14 @@ def construct_dataset():
     valid_x_max = np.load(os.path.join("mlp_dataset", "valid", 'x_max.npy'))
     valid_x_min = np.load(os.path.join("mlp_dataset", "valid", 'x_min.npy'))
 
+    test_x_max = np.load(os.path.join("mlp_dataset", "test", 'x_max.npy'))
+    test_x_min = np.load(os.path.join("mlp_dataset", "test", 'x_min.npy'))
+
     x_max = np.append(train_x_max.reshape((9, 1)), valid_x_max.reshape((9, 1)), axis=1)
+    x_max = np.append(x_max, test_x_max.reshape((9, 1)), axis=1)
+
     x_min = np.append(train_x_min.reshape((9, 1)), valid_x_min.reshape((9, 1)), axis=1)
+    x_min = np.append(x_min, test_x_min.reshape((9, 1)), axis=1)
 
     x_max = np.max(x_max, axis=1)
     x_min = np.min(x_min, axis=1)
@@ -144,7 +148,7 @@ def train():
 
     n_epoch = 100
     s_epoch = 0
-    lr = 1e-2
+    lr = 1e-3
     batch_size = 256
     gamma = 0.995
 
@@ -153,10 +157,10 @@ def train():
 
     network = MLPNetwork(node, drop=drop).to(device).double()
 
-    train_set = SeismicAttributeDataset(is_test=True, is_new=False)
+    train_set = SeismicAttributeDataset(data_usage="train", is_new=False)
     train_loader = tdata.DataLoader(dataset=train_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
-    valid_set = SeismicAttributeDataset(is_test=False, is_new=False)
+    valid_set = SeismicAttributeDataset(data_usage="valid", is_new=False)
     valid_loader = tdata.DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
 
     optimizer = optim.Adam(network.parameters(), lr=lr, betas=(0.9, 0.999))
@@ -167,6 +171,7 @@ def train():
 
     train_losses = []
     valid_losses = []
+    accuracies = []
     if s_epoch != 0:
         state = torch.load(os.path.join("mlp_dataset", "network", tag + "_" + str(s_epoch).zfill(4)))
 
@@ -176,6 +181,7 @@ def train():
 
         train_losses = state["train_losses"]
         valid_losses = state["valid_losses"]
+        accuracies = state["accuracies"]
 
     if len(train_set) % batch_size == 0:
         n_train = len(train_loader)
@@ -221,6 +227,7 @@ def train():
         crr_cnt = 0
         ttl_cnt = 0
         ave_valid_loss_biased = 0.0
+        accuracy = 0
         for i_batch, (x_data, y_data) in enumerate(valid_loader):
             if x_data.size()[0] != batch_size:
                 continue
@@ -240,23 +247,26 @@ def train():
             ave_valid_loss_biased = ema_coeff * ave_valid_loss_biased + (1 - ema_coeff) * loss.item()
             if (i_batch + 1) % 100 == 0 or (i_batch + 1) == n_valid:
                 ave_valid_loss = ave_valid_loss_biased / (1 - ema_coeff ** (i_batch + 1))
+                accuracy = float(crr_cnt) / ttl_cnt
                 print("epoch: {:4}, batch index: {:4}, valid loss: {:7.4f}, accuracy: {:.3f}".format(
                     i_epoch + 1,
                     i_batch + 1,
                     ave_valid_loss,
-                    float(crr_cnt) / ttl_cnt
+                    accuracy
                 ))
 
         scheduler.step()
         train_losses.append(ave_train_loss)
         valid_losses.append(ave_valid_loss)
+        accuracies.append(accuracy)
 
         state = {
             "network": network.state_dict(),
             "optimizer": optimizer.state_dict(),
             "scheduler": scheduler.state_dict(),
             "train_losses": train_losses,
-            "valid_losses": valid_losses
+            "valid_losses": valid_losses,
+            "accuracies": accuracies
         }
 
         print("epoch: {:4}, save training state".format(i_epoch + 1))

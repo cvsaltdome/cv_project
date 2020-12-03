@@ -180,3 +180,4 @@ dmypy.json
 
 mlp_dataset/network
 mlp_dataset/network/**
+*.npy
