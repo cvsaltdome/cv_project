@@ -275,5 +275,59 @@ def train():
         print("epoch: {:4}, execution time: {:6.2f}".format(i_epoch + 1, time.time() - start_time))
 
 
+def check_initial():
+    cudnn.benchmark = True
+    is_cuda_available = torch.cuda.is_available()
+    device = torch.device("cuda:0" if is_cuda_available else "cpu")
+
+    batch_size = 256
+
+    node = 16
+    drop = 0.5
+
+    network = MLPNetwork(node, drop=drop).to(device).double()
+
+    valid_set = SeismicAttributeDataset(data_usage="valid", is_new=False)
+    valid_loader = tdata.DataLoader(dataset=valid_set, batch_size=batch_size, shuffle=True, num_workers=0)
+
+    criterion = nn.KLDivLoss(reduction="batchmean")
+
+    if len(valid_set) % batch_size == 0:
+        n_valid = len(valid_loader)
+    else:
+        n_valid = len(valid_loader) - 1
+
+    ema_coeff = 0.9
+    network.eval()
+    crr_cnt = 0
+    ttl_cnt = 0
+    ave_valid_loss_biased = 0.0
+    for i_batch, (x_data, y_data) in enumerate(valid_loader):
+        if x_data.size()[0] != batch_size:
+            continue
+
+        x = x_data.to(device)
+        label = y_data.to(device)
+        y = network(x)
+        loss = criterion(torch.log(y), label)
+
+        _, prediction = torch.max(y.data, dim=1)
+        _, answer = torch.max(label.data, dim=1)
+        ttl_cnt += x.data.size()[0]
+        for i_data in range(x.data.size()[0]):
+            if prediction[i_data] == answer[i_data]:
+                crr_cnt += 1
+
+        ave_valid_loss_biased = ema_coeff * ave_valid_loss_biased + (1 - ema_coeff) * loss.item()
+        if (i_batch + 1) % 100 == 0 or (i_batch + 1) == n_valid:
+            ave_valid_loss = ave_valid_loss_biased / (1 - ema_coeff ** (i_batch + 1))
+            accuracy = float(crr_cnt) / ttl_cnt
+            print("batch index: {}, valid loss: {}, accuracy: {}".format(
+                i_batch + 1,
+                ave_valid_loss,
+                accuracy
+            ))
+
+
 if __name__ == "__main__":
-    train()
+    check_initial()
