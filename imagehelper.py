@@ -36,7 +36,7 @@ import random
 def get_image_pairs():
     original = []
     result = []
-    for i in range(0, 15):
+    for i in range(0, 199):
         original.append(f"data/original/{i}.png")
         result.append(f"data/result/{i}.png")
     return zip(original, result)

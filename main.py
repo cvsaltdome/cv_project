@@ -5,20 +5,51 @@ import cv2
 import covariance
 import edge
 import gl
+import glcm
 import imagehelper
 import smootheness
 import floodfill
 
 image_pairs = imagehelper.get_image_pairs()
+import numpy as np
+
+def get_result(real_image, calculated_image):
+    h, w = np.shape(real_image)
+    value1 = 0
+    value2 = 0
+    value3 = 0
+    value4 = 0
+    for i in range(0, h):
+        for j in range(0, w):
+            real_pixel = real_image[i, j]
+            calculated_pixel = calculated_image[i, j]
+            if real_pixel == 1 and calculated_pixel == 1:
+                value1 += 1
+            elif real_pixel == 0 and calculated_pixel == 1:
+                value2 += 1
+            elif real_pixel == 1 and calculated_pixel == 0:
+                value3 += 1
+            else:
+                value4 += 1
+    answer = np.array([value1, value2, value3, value4]).astype(int)
+    return answer
 
 if __name__ == "__main__":
+
+    data = []
+    for i in range(0, 10):
+        zero = np.zeros(4).astype(int)
+        data.append(zero)
+
+    count = 0
+
     for image, result in image_pairs:
         I = cv2.cvtColor(cv2.imread(image), cv2.COLOR_BGR2GRAY)
         R = cv2.cvtColor(cv2.imread(result), cv2.COLOR_BGR2GRAY)
         # glcm
         # non_salt_patches, salt_patches = glcm.treat_glcm(image, result)
         # covariance
-        covariance_result = covariance.treat_covariance_with_multiple_window_normalized(image)
+        # covariance_result = covariance.treat_covariance_with_multiple_window_normalized(image)
         # edge_result
         edge_result = edge.treat_edge_with_multiple_window(image)
         # GL
@@ -31,26 +62,24 @@ if __name__ == "__main__":
         # ])
 
         graph = floodfill.convert_edge_to_normal(edge_result)
-        floodfill_result, colored_results = floodfill.flood_fill(edge_result, covariance_result)
+        floodfill_result, colored_results = floodfill.flood_fill(edge_result, gl_result)
         imagehelper.show_in_plot([
             I, R,
-            covariance_result, edge_result, graph, floodfill_result,
+            gl_result, edge_result, graph, floodfill_result,
         ] + colored_results)
-        #
-        # for covariance_w in np.linspace(0, 1.0, num=5):
-        #     for edge_w in np.linspace(0, 1.0, num = 5):
-        #         for smootheness_w in np.linspace(0, 1, num = 5):
-        #             for covariance_p in np.linspace(1, 2.0, num=5):
-        #                 for edge_p in np.linspace(1, 2.0, num=5):
-        #                     for smootheness_p in np.linspace(1, 2, num=5):
-        #
-        #                         final_result = np.power(covariance_result, covariance_p) * covariance_w + np.power(edge_result, edge_p) * edge_w + np.power(smootheness_result, smootheness_p) * smootheness_w
-        #
-        #                         final_result = final_result / np.max(final_result)
-        #                         imagehelper.show_in_plot([
-        #                             I, R,
-        #                             covariance_result, edge_result, smootheness_result,
-        #                             final_result
-        #                         ])
-        #
-        #
+        converted_R = R / 255
+        for index, colored_result in enumerate(colored_results):
+            final_result = get_result(converted_R, colored_result)
+            data[index] += final_result
+        print(data)
+        print(count)
+        for index, value in enumerate(data):
+            print(f"{index}")
+            value1, value2, value3, value4 = value
+            print("{:12} {:12} {:12} {:12}".format(value1, value2, value3, value4))
+        count += 1
+
+    for index, value in enumerate(data):
+        print(f"{index}")
+        value1, value2, value3, value4 = value
+        print("{:12} {:12} {:12} {:12}".format(value1, value2, value3, value4))
