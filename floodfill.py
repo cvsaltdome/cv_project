@@ -142,7 +142,7 @@ def flood_fill(edge_region, covariance_result):
     for threshold in range(1, 10):
         result_image = np.zeros((h, w))
         for x, y, result in flood_fill_data:
-            if result > (threshold / 10):
+            if result < (threshold / 10):
                 bfs_for_result(x, y, h, w, result_image, flood_image)
         eval.append(result_image)
 

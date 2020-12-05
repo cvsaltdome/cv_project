@@ -22,7 +22,7 @@ if __name__ == "__main__":
         # edge_result
         edge_result = edge.treat_edge_with_multiple_window(image)
         # GL
-        gl_result=gl.treat_glcm_with_multiple_window_normalized(image,10,'homogeneity')
+        # gl_result=gl.treat_glcm_with_multiple_window_normalized(image,10,'homogeneity')
         # # smootheness
         # smootheness_result = smootheness.treat_smoothness_normalized(image)
         # imagehelper.show_in_plot([
@@ -31,11 +31,12 @@ if __name__ == "__main__":
         # ])
 
         graph = floodfill.convert_edge_to_normal(edge_result)
+
         floodfill_result, colored_results = floodfill.flood_fill(edge_result, covariance_result)
         imagehelper.show_in_plot([
-            I, R,
-            covariance_result, edge_result, graph, floodfill_result,
-        ] + colored_results)
+            I,
+            covariance_result, edge_result
+        ] + colored_results + [R])
         #
         # for covariance_w in np.linspace(0, 1.0, num=5):
         #     for edge_w in np.linspace(0, 1.0, num = 5):
